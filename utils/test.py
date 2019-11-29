@@ -369,7 +369,7 @@ def draw_XYZS_to_img(XYZS, image_color, out_file_name):
     """ Drawing functino for displaying """
 
     # draw onto the original image
-    if cv2.__version__[0] == '3':
+    if cv2.__version__[0] == '3' or cv2.__version__[0] == '4':
         linetype = cv2.LINE_AA
     else:
         linetype = cv2.CV_AA

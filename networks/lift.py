@@ -604,7 +604,6 @@ class Network(object):
     def _build_module(self, module, inputs, bypass, names, skip, reuse=None,
                       test_only=False):
         """Subroutine for building each module"""
-
         is_first = True
         # _module = "kp"
         for name in names:
@@ -647,7 +646,9 @@ class Network(object):
                         tf.GraphKeys.GLOBAL_VARIABLES, scope=sc.name)
                     # Also append to the global list
                     self.params["joint"] += self.params[module]
-                    self.allparams["joint"] += self.allparams[module]
+                    for modu in self.allparams[module]: 
+                        if modu not in self.allparams["joint"]: 
+                            self.allparams["joint"].append(modu)
                     # Mark that it is initialized
                     is_first = False
 

@@ -72,7 +72,7 @@ net_arg.add_argument("--module_desc", type=str, default="lift_desc", help="")
 
 # Batch-norm on-off
 net_arg.add_argument("--use_input_batch_norm", type=str2bool, default=False, help="")
-net_arg.add_argument("--use_batch_norm", type=str2bool, default=True, help="")
+net_arg.add_argument("--use_batch_norm", type=str2bool, default=False, help="")
 
 # Data compatibility option
 net_arg.add_argument("--old_data_compat", type=str2bool, default=False, help="Use hard-mined, non-augmented set")
@@ -120,19 +120,19 @@ data_arg.add_argument(
     "--data_dir", type=str, help=(
         "The directory containing the dataset. "
         "Will look for {data_dir}/{data_name}"
-    ), default="/cvlabdata2/home/{}/Datasets/".format(username),
+    ), default="./Datasets/",
 )
 data_arg.add_argument(
     "--temp_dir", type=str, help=(
         "The temporary directory where data related cache will be stored."
-    ), default="/cvlabdata2/home/{}/Temp/".format(username),
+    ), default="./temp/",
 )
 data_arg.add_argument(
     "--scratch_dir", type=str, help=(
         "The temporary directory that will be used as cache."
         "We have this since the large data is typically stored in a "
         "network share"
-    ), default="/scratch/{}/Temp/".format(username),
+    ), default="./scratch/Temp/",
 )
 data_arg.add_argument(
     "--pair_dir", type=str, help=(
@@ -182,9 +182,9 @@ train_arg.add_argument("--mining_ceil", type=int, default=0,
                        help="Max number of batches (0 to disable)")
 
 # Pretrain information to force in if needed
-train_arg.add_argument("--pretrained_kp", type=str, default="", help="")
-train_arg.add_argument("--pretrained_ori", type=str, default="", help="")
-train_arg.add_argument("--pretrained_desc", type=str, default="", help="")
+train_arg.add_argument("--pretrained_kp", type=str, default="./release-aug/kp/", help="")
+train_arg.add_argument("--pretrained_ori", type=str, default="./release-aug/ori/", help="")
+train_arg.add_argument("--pretrained_desc", type=str, default="./release-aug/desc/", help="")
 train_arg.add_argument("--pretrained_joint", type=str, default="", help="")
 
 # ----------------------------------------

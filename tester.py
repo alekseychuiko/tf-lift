@@ -66,8 +66,10 @@ class Tester(object):
 
         # Create the dataset instance
         self.dataset = Dataset(self.config, rng)
+
         # Retrieve mean/std (yes it is hacky)
         logdir = os.path.join(self.config.logdir, self.config.subtask)
+        print("CHecking {}".format(os.path.join(logdir, "mean.h5")))
         if os.path.exists(os.path.join(logdir, "mean.h5")):
             training_mean = loadh5(os.path.join(logdir, "mean.h5"))
             training_std = loadh5(os.path.join(logdir, "std.h5"))
