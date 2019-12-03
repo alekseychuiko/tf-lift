@@ -69,7 +69,7 @@ class Tester(object):
 
         # Retrieve mean/std (yes it is hacky)
         logdir = os.path.join(self.config.logdir, self.config.subtask)
-        print("CHecking {}".format(os.path.join(logdir, "mean.h5")))
+
         if os.path.exists(os.path.join(logdir, "mean.h5")):
             training_mean = loadh5(os.path.join(logdir, "mean.h5"))
             training_std = loadh5(os.path.join(logdir, "std.h5"))
@@ -87,6 +87,7 @@ class Tester(object):
         self.best_step = {}
         # Create the saver instance for both joint and the current subtask
         for _key in ["joint", self.config.subtask]:
+            print("[{}] Saver".format(_key))
             self.saver[_key] = tf.train.Saver(self.network.allparams[_key])
 
         # We have everything ready. We finalize and initialie the network here.

@@ -214,6 +214,25 @@ test_arg.add_argument("--test_edge_th", type=float, default=10.0, help="")
 train_arg = add_argument_group("Misc")
 loss_arg.add_argument("--usage", type=float, default=0.96, help="Force GPU memory usage")
 
+# ----------------------------------------
+# Video
+video_arg = add_argument_group("Video")
+video_arg.add_argument('--H', type=int, default=720, help='Input image height (default: 720).')
+video_arg.add_argument('--W', type=int, default=1280, help='Input image width (default:1280).')
+video_arg.add_argument('--camid', type=int, default=0, help='OpenCV webcam video capture ID, usually 0 or 1 (default: 0).')
+video_arg.add_argument('--waitkey', type=int, default=1, help='OpenCV waitkey time in ms (default: 1).')
+# ----------------------------------------
+# Detector
+detector_arg = add_argument_group("Detector")
+detector_arg.add_argument('--object_path', type=str, help='Path to object to detect')
+detector_arg.add_argument('--show_keypoints', type=int, default=0, help='0 - dont show keypoints, 1 - show matched keypoints, 2 - show all keypoints (default: not show)')
+detector_arg.add_argument('--matcher_multiplier', type=float, default=0.8, help='Filter matches using the Lowes ratio test (default: 0.8).')
+detector_arg.add_argument('--norm_type', type=int, default=1, help='0 - L1, 1 - L2, 2 - L2SQR, 3 - HAMMING, 4 - HAMMING (default: 1)')
+detector_arg.add_argument('--method', type=int, default=0, help='0 - RANSAK, 1 - LMEDS, 2 - RHO (default: 0)')
+detector_arg.add_argument('--repr_threshold', type=int, default=3, help='Maximum allowed reprojection error to treat a point pair as an inlier (used in the RANSAC and RHO methods only) (default: 3)')
+detector_arg.add_argument('--max_iter', type=int, default=2000, help='Maximum number of RANSAC iterations (default: 2000)')
+detector_arg.add_argument('--confidence', type=float, default=0.995, help='homography confidence level (default: 0.995).')
+detector_arg.add_argument('--modeldir', type=str, default='release-aug', help='model directory')
 
 def get_config(argv):
     config, unparsed = parser.parse_known_args()

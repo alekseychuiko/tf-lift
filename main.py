@@ -47,6 +47,7 @@ def main(_):
 
     # Create a random state using the random seed given by the config. This
     # should allow reproducible results.
+    tf.reset_default_graph()
     rng = np.random.RandomState(config.random_seed)
     tf.set_random_seed(config.random_seed)
 
