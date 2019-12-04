@@ -356,6 +356,178 @@ def get_XYZS_from_res_list(res_list, resize_to_test, scales_to_test, nearby=1,
 
     return XYZS
 
+def get_XYZS_from_scoremap(scoremap, nearby=1,
+                           edge_th=0, scl_intv=2, nms_intv=1,
+                           do_interpolation=False, fScaleEdgeness=0.0):
+    # NMS
+    nms_res = nonMaxSuppression(scoremap, nearby=nearby,
+                                scl_intv=scl_intv, nms_intv=nms_intv)
+
+    XYZS = get_subpixel_XYZSfrom_scoremap(scoremap, nms_res, edge_th, do_interpolation,
+                             fScaleEdgeness)
+    # sort by score
+    XYZS = XYZS[np.argsort(XYZS[:, 3])[::-1]]
+
+    return XYZS
+
+def get_subpixel_XYZSfrom_scoremap(scoremap, nms, edge_th, do_interpolation,fScaleEdgeness):
+
+    X = [()]
+    Y = [()]
+    Z = [()]
+    S = [()]
+
+    pts = np.where(nms)
+
+    def at(dx, dy, ds):
+        if not isinstance(dx, np.ndarray):
+            dx = np.ones(len(pts[0]),) * dx
+        if not isinstance(dy, np.ndarray):
+            dy = np.ones(len(pts[0]),) * dy
+        if not isinstance(ds, np.ndarray):
+            ds = np.ones(len(pts[0]),) * ds
+        new_pts = (pts[0] + dy, pts[1] + dx)
+        ds = np.round(ds).astype(int)
+
+        assert np.max(ds) <= 1 and np.min(ds) >= -1
+        
+        #TODO
+        
+        new_pts = tuple([np.round(v * r).astype(int)
+                             for v, r in zip(new_pts, fRatio)])
+            scores_to_return = np.asarray([
+                score_list[idxScale + _ds][_y, _x]
+                for _ds, _x, _y in zip(
+                    ds, new_pts[1], new_pts[0]
+                )
+            ])
+            return scores_to_return
+
+        # compute the gradient
+        Dx = 0.5 * (at(+1, 0, 0) - at(-1, 0, 0))
+        Dy = 0.5 * (at(0, +1, 0) - at(0, -1, 0))
+        Ds = 0.5 * (at(0, 0, +1) - at(0, 0, -1))
+
+        # compute the Hessian
+        Dxx = (at(+1, 0, 0) + at(-1, 0, 0) - 2.0 * at(0, 0, 0))
+        Dyy = (at(0, +1, 0) + at(0, -1, 0) - 2.0 * at(0, 0, 0))
+        Dss = (at(0, 0, +1) + at(0, 0, -1) - 2.0 * at(0, 0, 0))
+
+        Dxy = 0.25 * (at(+1, +1, 0) + at(-1, -1, 0) -
+                      at(-1, +1, 0) - at(+1, -1, 0))
+        Dxs = 0.25 * (at(+1, 0, +1) + at(-1, 0, -1) -
+                      at(-1, 0, +1) - at(+1, 0, -1))
+        Dys = 0.25 * (at(0, +1, +1) + at(0, -1, -1) -
+                      at(0, -1, +1) - at(0, +1, -1))
+
+        # filter out all keypoints which we have inf
+        is_good = (np.isfinite(Dx) * np.isfinite(Dy) * np.isfinite(Ds) *
+                   np.isfinite(Dxx) * np.isfinite(Dyy) * np.isfinite(Dss) *
+                   np.isfinite(Dxy) * np.isfinite(Dxs) * np.isfinite(Dys))
+        Dx = Dx[is_good]
+        Dy = Dy[is_good]
+        Ds = Ds[is_good]
+        Dxx = Dxx[is_good]
+        Dyy = Dyy[is_good]
+        Dss = Dss[is_good]
+        Dxy = Dxy[is_good]
+        Dxs = Dxs[is_good]
+        Dys = Dys[is_good]
+        pts = tuple([v[is_good] for v in pts])
+        # check if empty
+        if len(pts[0]) == 0:
+            continue
+
+        # filter out all keypoints which are on edges
+        if edge_th > 0:
+
+            # # re-compute the Hessian
+            # Dxx = (at(b[:, 0] + 1, b[:, 1], b[:, 2]) +
+            #        at(b[:, 0] - 1, b[:, 1], b[:, 2]) -
+            #        2.0 * at(b[:, 0], b[:, 1], b[:, 2]))
+            # Dyy = (at(b[:, 0], b[:, 1] + 1, b[:, 2]) +
+            #        at(b[:, 0], b[:, 1] - 1, b[:, 2]) -
+            #        2.0 * at(b[:, 0], b[:, 1], b[:, 2]))
+
+            # Dxy = 0.25 * (at(b[:, 0] + 1, b[:, 1] + 1, b[:, 2]) +
+            #               at(b[:, 0] - 1, b[:, 1] - 1, b[:, 2]) -
+            #               at(b[:, 0] - 1, b[:, 1] + 1, b[:, 2]) -
+            #               at(b[:, 0] + 1, b[:, 1] - 1, b[:, 2]))
+
+            # H = np.asarray([[Dxx, Dxy, Dxs],
+            #                 [Dxy, Dyy, Dys],
+            #                 [Dxs, Dys, Dss]]).transpose([2, 0, 1])
+
+            edge_score = (Dxx + Dyy) * (Dxx + Dyy) / (Dxx * Dyy - Dxy * Dxy)
+            is_good = ((edge_score >= 0) *
+                       (edge_score < (edge_th + 1.0)**2 / edge_th))
+
+            if fScaleEdgeness > 0:
+                is_good = is_good * (
+                    abs(Dss) > fScaleEdgeness
+                )
+
+            Dx = Dx[is_good]
+            Dy = Dy[is_good]
+            Ds = Ds[is_good]
+            Dxx = Dxx[is_good]
+            Dyy = Dyy[is_good]
+            Dss = Dss[is_good]
+            Dxy = Dxy[is_good]
+            Dxs = Dxs[is_good]
+            Dys = Dys[is_good]
+            pts = tuple([v[is_good] for v in pts])
+            # check if empty
+            if len(pts[0]) == 0:
+                continue
+
+        b = np.zeros((len(pts[0]), 3))
+        if do_interpolation:
+            # from VLFEAT
+
+            # solve linear system
+            A = np.asarray([[Dxx, Dxy, Dxs],
+                            [Dxy, Dyy, Dys],
+                            [Dxs, Dys, Dss]]).transpose([2, 0, 1])
+
+            b = np.asarray([-Dx, -Dy, -Ds]).transpose([1, 0])
+
+            b_solved = np.zeros_like(b)
+            for idxPt in xrange(len(A)):
+                b_solved[idxPt] = lu_solve(lu_factor(A[idxPt]), b[idxPt])
+
+            b = b_solved
+
+        # throw away the ones with bad subpixel localizatino
+        is_good = ((abs(b[:, 0]) < 1.5) * (abs(b[:, 1]) < 1.5) *
+                   (abs(b[:, 2]) < 1.5))
+        b = b[is_good]
+        pts = tuple([v[is_good] for v in pts])
+        # check if empty
+        if len(pts[0]) == 0:
+            continue
+
+        x = pts[1] + b[:, 0]
+        y = pts[0] + b[:, 1]
+        log_ds = b[:, 2]
+
+        S[idxScale] = at(b[:, 0], b[:, 1], b[:, 2])
+        X[idxScale] = x / resize_to_test[idxScale]
+        Y[idxScale] = y / resize_to_test[idxScale]
+        Z[idxScale] = scales_to_test[idxScale] * 2.0**(log_ds * log_scale_step)
+
+    X = np.concatenate(X)
+    Y = np.concatenate(Y)
+    Z = np.concatenate(Z)
+    S = np.concatenate(S)
+
+    XYZS = np.concatenate([X.reshape([-1, 1]),
+                           Y.reshape([-1, 1]),
+                           Z.reshape([-1, 1]),
+                           S.reshape([-1, 1])],
+                          axis=1)
+
+    return XYZS
 
 def get_subpixel_XYZS(score_list, nms_list, resize_to_test,
                       scales_to_test, edge_th, do_interpolation,

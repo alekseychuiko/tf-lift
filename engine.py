@@ -5,6 +5,7 @@ Created on Tue Dec  3 15:25:00 2019
 @author: achuiko
 """
 import os
+import time
 import numpy as np
 import tensorflow as tf
 
@@ -66,7 +67,7 @@ class ImportGraph(object):
         # Check if pretrain weight file is specified
         predir = getattr(self.config, "pretrained_{}".format(self.config.subtask))
         # Try loading the old weights
-        is_loaded += self.load_legacy_network(self.config.subtask, predir)
+        is_loaded += self.load_legacy_network(predir)
         # Try loading the tensorflow weights
         is_loaded += self.load_network(predir)
     
@@ -158,6 +159,92 @@ class Engine(object):
         tfconfig.gpu_options.allow_growth = True
         
         self.dataset = Dataset(self.config, self.rng)
-        graph_kp = ImportGraph(config, 'kp', self.dataset, tfconfig)
-        graph_ori = ImportGraph(config, 'ori', self.dataset, tfconfig)
-        graph_desc = ImportGraph(config, 'desc', self.dataset, tfconfig)
+        self.graph_kp = ImportGraph(config, 'kp', self.dataset, tfconfig)
+        self.graph_ori = ImportGraph(config, 'ori', self.dataset, tfconfig)
+        self.graph_desc = ImportGraph(config, 'desc', self.dataset, tfconfig)
+
+
+    def compute_kp(self, image):
+        """Compute Keypoints.
+
+        LATER: Clean up code
+
+        """
+        total_time = 0.0
+        start_time = time.clock()
+
+
+        # check size
+        image_height = image.shape[0]
+        image_width = image.shape[1]
+
+        scoremap = None
+        scoremap = self.network.test(self.config.subtask, image.reshape(1, image_height, image_width, 1)).squeeze()
+
+        end_time = time.clock()
+        compute_time = (end_time - start_time) * 1000.0
+        print("Time taken for image size {} is {} milliseconds".format(
+                      image.shape, compute_time))
+
+        total_time += compute_time
+
+        # pad invalid regions and add to list
+        start_time = time.clock()
+        test_res_list.append(np.pad(scoremap, int((self.config.kp_filter_size - 1) / 2),
+                       mode='constant',
+                       constant_values=-np.inf)
+        )
+        end_time = time.clock()
+        pad_time = (end_time - start_time) * 1000.0
+        print("Time taken for padding and stacking is {} ms".format(pad_time))
+        total_time += pad_time
+
+        # ------------------------------------------------------------------------
+        # Non-max suppresion and draw.
+
+        # The nonmax suppression implemented here is very very slow. Consider
+        # this as just a proof of concept implementation as of now.
+
+        # Standard nearby : nonmax will check approximately the same area as
+        # descriptor support region.
+        nearby = int(np.round(
+            (0.5 * (self.config.kp_input_size - 1.0) *
+             float(self.config.desc_input_size) /
+             float(get_patch_size(self.config)))
+        ))
+        fNearbyRatio = self.config.test_nearby_ratio
+        # Multiply by quarter to compensate
+        fNearbyRatio *= 0.25
+        nearby = int(np.round(nearby * fNearbyRatio))
+        nearby = max(nearby, 1)
+
+        nms_intv = self.config.test_nms_intv
+        edge_th = self.config.test_edge_th
+
+        print("Performing NMS")
+        start_time = time.clock()
+        res_list = test_res_list
+        # check whether the return result for socre is right
+        XYZS = get_XYZS_from_res_list(
+            res_list, resize_to_test, scales_to_test, nearby, edge_th,
+            scl_intv, nms_intv, do_interpolation=True,
+        )
+        end_time = time.clock()
+        XYZS = XYZS[:self.config.test_num_keypoint]
+
+        # For debugging
+        # TODO: Remove below
+        draw_XYZS_to_img(XYZS, image_color, self.config.test_out_file + '.jpg')
+
+        nms_time = (end_time - start_time) * 1000.0
+        print("NMS time is {} ms".format(nms_time))
+        total_time += nms_time
+        print("Total time for detection is {} ms".format(total_time))
+
+        # ------------------------------------------------------------------------
+        # Save as keypoint file to be used by the oxford thing
+        print("Turning into kp_list")
+        kp_list = XYZS2kpList(XYZS)  # note that this is already sorted
+
+        print("Saving to txt")
+        saveKpListToTxt(kp_list, None, self.config.test_out_file)
