@@ -14,6 +14,8 @@ import model
 import detector
 import engine
 from config import get_config, save_config
+from utils import (kp_list_2_opencv_kp_list)
+
 
 if __name__ == '__main__':
     config, unparsed = get_config(sys.argv)
@@ -41,8 +43,6 @@ if __name__ == '__main__':
     
     lift = engine.Engine(config)
 
-
-
     objDetector = detector.Detector(config.matcher_multiplier, norm_type, method, config.repr_threshold, config.max_iter, config.confidence)
 
     vs = videostreamer.VideoStreamer("camera", config.camid, config.H, config.W, 1, '')
@@ -57,7 +57,13 @@ if __name__ == '__main__':
     obj = model.ModelFile(config.object_path)
     greyObj = cv2.cvtColor(obj.image, cv2.COLOR_BGR2GRAY)
     
-   
+    keypoints = lift.compute_kp(greyObj)
+    objKeyPoints = kp_list_2_opencv_kp_list(keypoints)
+    if config.show_keypoints != 0:
+        objImg = cv2.drawKeypoints(greyObj, objKeyPoints, outImage=np.array([]), flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
+        cv2.imshow(objwin, objImg)
+    else:
+        cv2.imshow(objwin, greyObj)  
         
     key = cv2.waitKey() & 0xFF
 

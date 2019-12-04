@@ -152,7 +152,7 @@ task_arg.add_argument("--task", type=str, default="train",
 task_arg.add_argument("--subtask", type=str, default="desc",
                       choices=["kp", "ori", "desc", "joint"],
                       help="")
-task_arg.add_argument("--logdir", type=str, default="", help="")
+task_arg.add_argument("--logdir", type=str, default='release-aug', help="")
 task_arg.add_argument("--finetune", type=str, default="kp", help="e.g. 'kp+ori+desc'")
 
 # ----------------------------------------
@@ -232,7 +232,6 @@ detector_arg.add_argument('--method', type=int, default=0, help='0 - RANSAK, 1 -
 detector_arg.add_argument('--repr_threshold', type=int, default=3, help='Maximum allowed reprojection error to treat a point pair as an inlier (used in the RANSAC and RHO methods only) (default: 3)')
 detector_arg.add_argument('--max_iter', type=int, default=2000, help='Maximum number of RANSAC iterations (default: 2000)')
 detector_arg.add_argument('--confidence', type=float, default=0.995, help='homography confidence level (default: 0.995).')
-detector_arg.add_argument('--modeldir', type=str, default='release-aug', help='model directory')
 
 def get_config(argv):
     config, unparsed = parser.parse_known_args()
