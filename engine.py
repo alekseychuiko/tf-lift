@@ -15,7 +15,7 @@ from datasets.test import Dataset
 from networks.lift import Network
 import copy
 from datasets.eccv2016.helper import load_patches
-
+from utils import (kp_list_2_opencv_kp_list)
 from utils import (IDX_ANGLE, XYZS2kpList, get_patch_size,
                    get_ratio_scale, get_XYZS_from_res_list,
                    saveh5, saveKpListToTxt, update_affine, loadh5)
@@ -169,21 +169,26 @@ class Engine(object):
         self.dataset = Dataset(self.config, self.rng)
         self.graph_kp = ImportGraph(config, 'kp', self.dataset, tfconfig)
         self.graph_ori = ImportGraph(config, 'ori', self.dataset, tfconfig)
-        #self.graph_desc = ImportGraph(config, 'desc', self.dataset, tfconfig)
+        self.graph_desc = ImportGraph(config, 'desc', self.dataset, tfconfig)
 
-
-    def compute_kp(self, image):
+    def compute(self, image_gray):
+        keypoints = self.compute_kp(image_gray)
+        cur_data = self.load_data(image_gray, keypoints)
+        keypoints, cur_data = self.compute_ori(cur_data)
+        desc = self.compute_desc(cur_data)
+        return kp_list_2_opencv_kp_list(keypoints), desc
+        
+    def compute_kp(self, image_gray):
         """Compute Keypoints.
 
         LATER: Clean up code
 
         """
-
         total_time = 0.0
 
         # check size
-        image_height = image.shape[0]
-        image_width = image.shape[1]
+        image_height = image_gray.shape[0]
+        image_width = image_gray.shape[1]
 
         # Multiscale Testing
         scl_intv = self.config.test_scl_intv
@@ -192,7 +197,7 @@ class Engine(object):
         min_scale_log2 = self.config.test_min_scale_log2
         max_scale_log2 = self.config.test_max_scale_log2
         # Test starting with double scale if small image
-        min_hw = np.min(image.shape[:2])
+        min_hw = np.min(image_gray.shape[:2])
         # for the case of testing on same scale, do not double scale
         if min_hw <= 1600 and min_scale_log2!=max_scale_log2:
             print("INFO: Testing double scale")
@@ -207,7 +212,7 @@ class Engine(object):
                           (get_ratio_scale(self.config) * scales_to_test))
 
         # check if resize is valid
-        min_hw_after_resize = resize_to_test * np.min(image.shape[:2])
+        min_hw_after_resize = resize_to_test * np.min(image_gray.shape[:2])
         is_resize_valid = min_hw_after_resize > self.config.kp_filter_size + 1
 
         # if there are invalid scales and resizes
@@ -230,7 +235,7 @@ class Engine(object):
             new_height = np.cast['int'](np.round(image_height * resize))
             new_width = np.cast['int'](np.round(image_width * resize))
             start_time = time.clock()
-            image = cv2.resize(image, (new_width, new_height))
+            image = cv2.resize(image_gray, (new_width, new_height))
             end_time = time.clock()
             resize_time = (end_time - start_time) * 1000.0
             print("Time taken to resize image is {}ms".format(
@@ -315,22 +320,12 @@ class Engine(object):
         # Save as keypoint file to be used by the oxford thing
         print("Turning into kp_list")
         kp_list = XYZS2kpList(XYZS)  # note that this is already sorted
-        return self.compute_ori(image, kp_list)
+        return kp_list
     
-    def compute_ori(self, image, keypoints):
+    def compute_ori(self, cur_data):
         """Compute Orientations """
 
         total_time = 0.0
-
-        # Read image
-        start_time = time.clock()
-        cur_data = self.load_data(image, keypoints)
-        end_time = time.clock()
-        load_time = (end_time - start_time) * 1000.0
-        print("Time taken to load patches is {} ms".format(
-            load_time
-        ))
-        total_time += load_time
 
         # -------------------------------------------------------------------------
         # Test using the test function
@@ -356,10 +351,27 @@ class Engine(object):
         ))
         total_time += update_time
         print("Total time for orientation is {} ms".format(total_time))
-
         # save as new keypoints
-        return kps
-        
+        return kps, cur_data
+    
+    def compute_desc(self, cur_data):
+        """Compute Descriptors """
+
+        total_time = 0.0
+
+        # -------------------------------------------------------------------------
+        # Test using the test function
+        start_time = time.clock()
+        desc = self._test_multibatch(self.graph_desc, cur_data)
+        end_time = time.clock()
+        compute_time = (end_time - start_time) * 1000.0
+        print("Time taken to compute is {} ms".format(
+            compute_time
+        ))
+        total_time += compute_time
+        print("Total time for descriptor is {} ms".format(total_time))
+        return desc
+
         
     def load_data(self, img, keypoint):
         """Returns the patch, given the keypoint structure

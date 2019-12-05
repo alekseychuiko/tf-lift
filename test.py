@@ -14,8 +14,6 @@ import model
 import detector
 import engine
 from config import get_config, save_config
-from utils import (kp_list_2_opencv_kp_list)
-
 
 if __name__ == '__main__':
     config, unparsed = get_config(sys.argv)
@@ -57,15 +55,42 @@ if __name__ == '__main__':
     obj = model.ModelFile(config.object_path)
     greyObj = cv2.cvtColor(obj.image, cv2.COLOR_BGR2GRAY)
     
-    keypoints = lift.compute_kp(greyObj)
-    objKeyPoints = kp_list_2_opencv_kp_list(keypoints)
+    objKeyPoints, objDesc = lift.compute(greyObj)
     if config.show_keypoints != 0:
         objImg = cv2.drawKeypoints(greyObj, objKeyPoints, outImage=np.array([]), flags=cv2.DRAW_MATCHES_FLAGS_DRAW_RICH_KEYPOINTS)
         cv2.imshow(objwin, objImg)
     else:
         cv2.imshow(objwin, greyObj)  
         
-    key = cv2.waitKey() & 0xFF
+    while True:
+
+        start = time.time()
+
+        # Get a new image.
+        img, status = vs.next_frame()
+    
+        if status is False:
+            break
+
+        # Get points and descriptors.
+        start1 = time.time()
+        imgKeyPoints, imgDesc = lift.compute(img)
+        
+        out = objDetector.detect((np.dstack((img, img, img))).astype('uint8'), 
+                       objKeyPoints, imgKeyPoints, objDesc, imgDesc, obj, config.show_keypoints)
+        
+        end1 = time.time()
+        cv2.imshow(win, out)
+        
+        key = cv2.waitKey(config.waitkey) & 0xFF
+        if key == ord('q'):
+            print('Quitting, \'q\' pressed.')
+            break
+    
+        end = time.time()
+        net_t = (1./ float(end1 - start))
+        total_t = (1./ float(end - start))
+        print('Processed image %d (net+post_process: %.2f FPS, total: %.2f FPS).' % (vs.i, net_t, total_t))
 
     cv2.destroyAllWindows()
 
